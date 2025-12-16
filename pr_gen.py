@@ -31,22 +31,50 @@ def get_current_branch():
         print("Error: Not a git repository.", file=sys.stderr)
         sys.exit(1)
 
+def check_existing_pr(branch_name):
+    """既にこのブランチに関連するPRがあるかチェックする"""
+    print(f"Checking for existing PRs for '{branch_name}'...", end="", flush=True)
+    try:
+        # gh pr list --head <branch> --json url,number,state
+        cmd = ["gh", "pr", "list", "--head", branch_name, "--json", "url,number,state", "--state", "open"]
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        prs = json.loads(res.stdout)
+
+        if prs:
+            # PRが見つかった場合
+            pr = prs[0]
+            print(f" Found!")
+            print(f"\n\033[1;33mPR already exists:\033[0m #{pr['number']} ({pr['state']})")
+            print(f"URL: {pr['url']}")
+
+            # ブラウザで開くか聞く
+            open_web = questionary.confirm("Open in browser?", default=False).ask()
+            if open_web:
+                subprocess.run(["gh", "pr", "view", str(pr['number']), "--web"])
+
+            sys.exit(0) # ここで終了（APIを消費しない）
+
+        print(" None found (OK).")
+        return False
+
+    except subprocess.CalledProcessError:
+        # コマンド失敗時は無視して進む
+        print(" Error checking PRs. Continuing...")
+        return False
+
 def check_and_push_branch(branch_name):
     """リモートにブランチがあるか確認し、なければプッシュを促す"""
     print(f"Checking remote branch for '{branch_name}'...", end="", flush=True)
 
-    # git ls-remote でリモートブランチの存在確認
-    # 戻り値が0なら存在する、それ以外なら存在しない（または通信エラー）
     cmd = ["git", "ls-remote", "--exit-code", "--heads", "origin", branch_name]
     result = subprocess.run(cmd, capture_output=True)
 
     if result.returncode == 0:
         print(" OK (Exists).")
-        return True # 存在する
+        return True
 
     print(" Not found.")
 
-    # 存在しない場合、プッシュするか聞く
     should_push = questionary.confirm(
         f"Branch '{branch_name}' does not exist on remote. Push now?",
         default=True
@@ -66,14 +94,10 @@ def check_and_push_branch(branch_name):
         sys.exit(0)
 
 def get_commit_logs(base_branch="main"):
-    """base_branchとの差分コミットログを取得"""
     try:
-        # mainが存在しない場合などを考慮して簡易的に取得
         cmd = ["git", "log", f"{base_branch}..HEAD", "--pretty=format:- %s"]
         res = subprocess.run(cmd, capture_output=True, text=True)
-
         if res.returncode != 0 or not res.stdout.strip():
-            # 差分が取れない場合は直近5件
             cmd = ["git", "log", "-n", "5", "--pretty=format:- %s"]
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return res.stdout.strip()
@@ -81,7 +105,6 @@ def get_commit_logs(base_branch="main"):
         return "No commit logs found."
 
 def get_linked_issue_info(branch_name):
-    """ブランチ名 (88-fix-...) からIssue情報を取得"""
     match = re.match(r'^(\d+)-', branch_name)
     if not match:
         return "None", "None"
@@ -99,7 +122,10 @@ def get_linked_issue_info(branch_name):
 
 branch_name = get_current_branch()
 
-# リモートブランチの確認とプッシュ
+# 1. 既存PRチェック (API節約)
+check_existing_pr(branch_name)
+
+# 2. リモートブランチチェック
 check_and_push_branch(branch_name)
 
 commit_logs = get_commit_logs()
@@ -112,7 +138,6 @@ if issue_number != "None":
 print("Generating PR description...", end="", flush=True)
 
 try:
-    # プロンプト作成
     prompt_template = config['pr']['prompt']
     prompt = prompt_template.format(
         branch_name=branch_name,
@@ -121,12 +146,10 @@ try:
         commit_logs=commit_logs
     )
 
-    # Gemini呼び出し
     model = genai.GenerativeModel(MODEL_NAME)
     response = model.generate_content(prompt)
     generated_text = response.text.strip()
 
-    # JSONパース
     json_match = re.search(r'\{.*\}', generated_text, re.DOTALL)
     json_str = json_match.group(0) if json_match else generated_text
     pr_data = json.loads(json_str)
@@ -157,13 +180,7 @@ try:
         sys.exit(0)
 
     print("Creating PR...")
-
-    # gh pr create 実行
     cmd = ["gh", "pr", "create", "--title", title, "--body", body]
-
-    # 必要ならWebで開くオプションを追加
-    # cmd.append("--web")
-
     subprocess.run(cmd, check=True)
     print("Done! 🚀")
 
