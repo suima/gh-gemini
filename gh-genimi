@@ -11,9 +11,10 @@ Usage:
   gh gemini <command> [args]
 
 Available Commands:
-  branch <issue_id>   Generate a branch name from an issue.
-  comment             Generate a commit message from staged changes.
-  help                Show this help message.
+  issue [-c|--clipboard]   Generate an issue from pipe or clipboard.
+  branch <issue_id>        Generate a branch name from an issue.
+  comment                  Generate a commit message from staged changes.
+  help                     Show this help message.
 """)
 
 def main():
@@ -27,7 +28,12 @@ def main():
     # スクリプトのあるディレクトリを取得
     script_dir = os.path.dirname(os.path.realpath(__file__))
 
-    if command == "branch":
+    if command == "issue":
+        # issue_gen.py を実行
+        script_path = os.path.join(script_dir, "issue_gen.py")
+        subprocess.run([sys.executable, script_path] + args)
+
+    elif command == "branch":
         # branch_gen.py を実行
         script_path = os.path.join(script_dir, "branch_gen.py")
         subprocess.run([sys.executable, script_path] + args)
