@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import sys
+import subprocess
+import os
+
+def show_help():
+    print("""
+Gemini AI Tools for GitHub CLI 🚀
+
+Usage:
+  gh gemini <command> [args]
+
+Available Commands:
+  branch <issue_id>   Generate a branch name from an issue.
+  comment             Generate a commit message from staged changes.
+  help                Show this help message.
+""")
+
+def main():
+    if len(sys.argv) < 2:
+        show_help()
+        sys.exit(1)
+
+    command = sys.argv[1]
+    args = sys.argv[2:]
+
+    # スクリプトのあるディレクトリを取得
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+
+    if command == "branch":
+        # branch_gen.py を実行
+        script_path = os.path.join(script_dir, "branch_gen.py")
+        subprocess.run([sys.executable, script_path] + args)
+
+    elif command == "comment":
+        # comment_gen.py を実行
+        script_path = os.path.join(script_dir, "comment_gen.py")
+        subprocess.run([sys.executable, script_path] + args)
+
+    elif command == "help":
+        show_help()
+
+    else:
+        print(f"Unknown command: {command}")
+        show_help()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
