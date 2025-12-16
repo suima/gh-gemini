@@ -21,7 +21,7 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-# --- Git情報の取得 ---
+# --- Git情報の取得と操作 ---
 
 def get_current_branch():
     try:
@@ -31,15 +31,49 @@ def get_current_branch():
         print("Error: Not a git repository.", file=sys.stderr)
         sys.exit(1)
 
+def check_and_push_branch(branch_name):
+    """リモートにブランチがあるか確認し、なければプッシュを促す"""
+    print(f"Checking remote branch for '{branch_name}'...", end="", flush=True)
+
+    # git ls-remote でリモートブランチの存在確認
+    # 戻り値が0なら存在する、それ以外なら存在しない（または通信エラー）
+    cmd = ["git", "ls-remote", "--exit-code", "--heads", "origin", branch_name]
+    result = subprocess.run(cmd, capture_output=True)
+
+    if result.returncode == 0:
+        print(" OK (Exists).")
+        return True # 存在する
+
+    print(" Not found.")
+
+    # 存在しない場合、プッシュするか聞く
+    should_push = questionary.confirm(
+        f"Branch '{branch_name}' does not exist on remote. Push now?",
+        default=True
+    ).ask()
+
+    if should_push:
+        print(f"Running: git push -u origin {branch_name}")
+        try:
+            subprocess.run(["git", "push", "-u", "origin", branch_name], check=True)
+            print("Push successful! 🚀")
+            return True
+        except subprocess.CalledProcessError:
+            print("Error: Failed to push branch.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print("Cannot create PR without remote branch. Exiting.")
+        sys.exit(0)
+
 def get_commit_logs(base_branch="main"):
     """base_branchとの差分コミットログを取得"""
     try:
-        # mainが存在しない場合 (masterなど) を考慮してリモートのHEADと比較するのが理想だが
-        # 簡易的に main と比較する。必要なら git remote show origin でデフォルトブランチを取得するロジックを入れる
+        # mainが存在しない場合などを考慮して簡易的に取得
         cmd = ["git", "log", f"{base_branch}..HEAD", "--pretty=format:- %s"]
         res = subprocess.run(cmd, capture_output=True, text=True)
-        # エラー（mainがない等）の場合は直近5件だけ取得するフォールバック
+
         if res.returncode != 0 or not res.stdout.strip():
+            # 差分が取れない場合は直近5件
             cmd = ["git", "log", "-n", "5", "--pretty=format:- %s"]
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return res.stdout.strip()
@@ -64,11 +98,16 @@ def get_linked_issue_info(branch_name):
 # --- メイン処理 ---
 
 branch_name = get_current_branch()
+
+# リモートブランチの確認とプッシュ
+check_and_push_branch(branch_name)
+
 commit_logs = get_commit_logs()
 issue_number, issue_title = get_linked_issue_info(branch_name)
 
-print(f"Collecting context for branch '{branch_name}'...")
-print(f"Found related issue: #{issue_number} {issue_title}")
+print(f"\nCollecting context for branch '{branch_name}'...")
+if issue_number != "None":
+    print(f"Found related issue: #{issue_number} {issue_title}")
 
 print("Generating PR description...", end="", flush=True)
 
@@ -108,9 +147,8 @@ except Exception as e:
 
 # --- ユーザー確認と実行 ---
 try:
-    # プッシュ確認も含める
     confirmed = questionary.confirm(
-        "Create this Pull Request? (Make sure you have pushed your branch)",
+        "Create this Pull Request?",
         default=True
     ).ask()
 
@@ -121,11 +159,10 @@ try:
     print("Creating PR...")
 
     # gh pr create 実行
-    # Webブラウザで最終確認したい場合は --web を付ける手もあるが、ここでは完了まで自動化する
     cmd = ["gh", "pr", "create", "--title", title, "--body", body]
 
-    # 下書き(Draft)で作りたい場合は以下を追加
-    # cmd.append("--draft")
+    # 必要ならWebで開くオプションを追加
+    # cmd.append("--web")
 
     subprocess.run(cmd, check=True)
     print("Done! 🚀")
@@ -135,5 +172,4 @@ except KeyboardInterrupt:
     sys.exit(0)
 except subprocess.CalledProcessError as e:
     print("\nFailed to create PR.")
-    print("Hint: Did you run `git push`? Or does the base branch match?")
     sys.exit(1)
