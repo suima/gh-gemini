@@ -4,6 +4,9 @@ import os
 import subprocess
 import json
 import google.generativeai as genai
+import questionary  # 追加
+from questionary import Choice
+
 # common.py をインポートするためのパス設定
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import common
@@ -25,6 +28,7 @@ def get_issue_list(limit=30):
     """ghコマンドでIssueリストを取得する"""
     print("Fetching recent issues...", file=sys.stderr)
     try:
+        # 見やすさのために少し多めに取得
         cmd = ["gh", "issue", "list", "--limit", str(limit), "--json", "number,title,url"]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
@@ -33,43 +37,51 @@ def get_issue_list(limit=30):
         sys.exit(1)
 
 def select_issue_interactively():
-    """Issue一覧を表示してユーザーに選択させる"""
+    """questionaryを使ってカーソル選択させる"""
     issues = get_issue_list()
 
     if not issues:
         print("No open issues found.")
         sys.exit(0)
 
-    print("\nSelect an issue to create a branch for:")
-    print("-" * 60)
+    # 選択肢の作成
+    choices = []
+    for issue in issues:
+        # 表示名: "#88 Issueタイトル"
+        display_text = f"#{issue['number']} {issue['title']}"
+        # value: Issueオブジェクトそのもの
+        choices.append(Choice(title=display_text, value=issue))
 
-    # 見やすく整形して表示
-    for i, issue in enumerate(issues):
-        idx = i + 1
-        print(f"[{idx}] #{issue['number']} {issue['title']}")
+    # キャンセル用オプションを追加
+    choices.append(Choice(title="Cancel (Exit)", value="CANCEL"))
 
-    print("-" * 60)
-    print("[q] Quit")
+    # 選択メニューを表示
+    try:
+        selection = questionary.select(
+            "Select an issue to create a branch for:",
+            choices=choices,
+            qmark="?",
+            pointer="❯",
+            use_indicator=True,
+            style=questionary.Style([
+                ('qmark', 'fg:#FF9D00 bold'),       # 疑問符の色
+                ('question', 'bold'),               # 質問文のスタイル
+                ('pointer', 'fg:#FF9D00 bold'),     # カーソルの色
+                ('highlighted', 'fg:#FF9D00 bold'), # 選択中の項目の色
+                ('selected', 'fg:#cc5454'),         # 決定後の色
+            ])
+        ).ask() # ask()で実行
 
-    while True:
-        try:
-            choice = input("\nEnter number (or 'q' to quit): ").strip().lower()
-
-            if choice in ['q', 'quit', 'exit']:
-                print("Bye!")
-                sys.exit(0)
-
-            if not choice.isdigit():
-                continue
-
-            idx = int(choice)
-            if 1 <= idx <= len(issues):
-                return issues[idx - 1] # 選択されたIssueオブジェクトを返す
-            else:
-                print("Invalid number.")
-        except KeyboardInterrupt:
-            print("\nCanceled.")
+        # キャンセルまたはCtrl+Cの場合
+        if selection == "CANCEL" or selection is None:
+            print("Canceled.")
             sys.exit(0)
+
+        return selection
+
+    except KeyboardInterrupt:
+        print("\nCanceled.")
+        sys.exit(0)
 
 def get_issue_detail(issue_number):
     """特定のIssue詳細を取得する"""
@@ -122,12 +134,15 @@ except Exception as e:
     print(f"\nError calling Gemini API: {e}", file=sys.stderr)
     sys.exit(1)
 
-# 4. 実行確認 (qで終了に対応)
+# 4. 実行確認 (y/n選択もquestionary化)
 try:
-    print("\nPress [Enter] to create & checkout, or [q] to quit.")
-    user_input = input("> ").strip().lower()
+    # 単純な yes/no は confirm が便利
+    confirmed = questionary.confirm(
+        f"Create & checkout '{branch_name}'?",
+        default=True
+    ).ask()
 
-    if user_input in ['q', 'quit', 'exit']:
+    if not confirmed:
         print("Canceled.")
         sys.exit(0)
 
