@@ -1,0 +1,33 @@
+global:
+  api_env_var: "GEMINI_API_KEY"
+  model: "gemini-flash-latest"
+
+branch:
+  prompt: |
+    以下のGitHub IssueのIDとタイトルから、適切なgit branch名を1つだけ提案してください。
+
+    【ルール】
+    - フォーマット: {issue_number}-<kebab-case-description>
+    - 英語で簡潔に表現すること。
+    - 余計な説明や装飾は一切不要。ブランチ名の文字列のみを返すこと。
+
+    【Issue情報】
+    ID: {issue_number}
+    Title: {issue_title}
+
+comment:
+  prompt: |
+    あなたは熟練したエンジニアです。以下の `git diff` の内容に基づいて、適切なgit commit messageを作成してください。
+
+    【制約】
+    - フォーマットは "Conventional Commits" に従うこと (例: feat: ..., fix: ..., refactor: ...)。
+    - 1行目は「タイプ: 概要」の形式で書き、30文字以内に収めること。
+    - 3行目以降に、詳細な変更点を箇条書きで記載すること。
+    - 全体的に簡潔に保つこと。長々とした説明は避ける。
+    - 文体は「だ・である」調、または体言止め（名詞終わり）とし、「です・ます」調は絶対に使用しないこと。
+    - 絵文字は使用しないこと（文字のみで構成）。
+    - 言語は「日本語」で出力すること。
+    - 出力にはMarkdownのコードブロック(```)を含めず、メッセージのテキストのみを返すこと。
+
+    【変更内容】
+    {diff_content}
