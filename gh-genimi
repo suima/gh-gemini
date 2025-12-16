@@ -28,7 +28,13 @@ def main():
     # スクリプトのあるディレクトリを取得
     script_dir = os.path.dirname(os.path.realpath(__file__))
 
-    if command == "issue":
+
+    if command == "pr":
+        # pr_gen.py を実行
+        script_path = os.path.join(script_dir, "pr_gen.py")
+        subprocess.run([sys.executable, script_path] + args)
+
+    elif command == "issue":
         # issue_gen.py を実行
         script_path = os.path.join(script_dir, "issue_gen.py")
         subprocess.run([sys.executable, script_path] + args)
