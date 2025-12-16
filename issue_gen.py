@@ -41,8 +41,15 @@ def get_input_content():
     else:
         # 標準入力（パイプ）のチェック
         if not sys.stdin.isatty():
-            # パイプからデータが来ている場合
+            # パイプからデータが来ている場合、最後まで読み込む
             content = sys.stdin.read()
+
+            # 読み込み終わったら、標準入力をターミナル(キーボード)に繋ぎ直す
+            # これをしないと、後の questionary で入力ができずにクラッシュする
+            try:
+                sys.stdin = open("/dev/tty")
+            except OSError:
+                print("Warning: Could not connect to terminal input.", file=sys.stderr)
         else:
             # パイプもクリップボード指定もない場合
             print("Error: No input provided.")
@@ -70,8 +77,6 @@ try:
 
     # Gemini呼び出し
     model = genai.GenerativeModel(MODEL_NAME)
-    # JSONモードを強制するために response_mime_type を指定できるモデルならしたいが、
-    # 汎用性を高めるためプロンプト指示 + パース処理で対応
     response = model.generate_content(prompt)
     generated_text = response.text.strip()
 
@@ -104,6 +109,7 @@ except Exception as e:
 
 # --- ユーザー確認と実行 ---
 try:
+    # stdinを繋ぎ直したので、ここで入力待ちができるようになる
     confirmed = questionary.confirm(
         "Create this Issue?",
         default=True
@@ -117,9 +123,6 @@ try:
 
     # gh issue create コマンドを実行
     cmd = ["gh", "issue", "create", "--title", title, "--body", body]
-
-    # ブラウザで開くかどうかのオプションなどはお好みで追加可能
-    # cmd.append("--web")
 
     subprocess.run(cmd, check=True)
     print("Done! 🚀")
