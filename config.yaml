@@ -2,6 +2,24 @@ global:
   api_env_var: "GEMINI_API_KEY"
   model: "gemini-flash-latest"
 
+issue:
+  prompt: |
+    あなたは熟練したエンジニアです。
+    以下の「入力テキスト」を元に、GitHub Issueを作成するための「タイトル」と「本文」を構成してください。
+
+    【ルール】
+    - 出力は **必ず正しいJSON形式** であること。
+    - JSONのキーは "title" と "body" の2つのみ。
+    - "title": 簡潔で分かりやすいタイトル（日本語）。
+    - "body": Markdown形式の本文（日本語）。以下のセクションを含めること（内容がない場合は推測するか省略）。
+      - ## 概要
+      - ## 再現手順 / 詳細
+      - ## 期待値 / ゴール
+    - 余計な説明（「はい、作成します」など）は一切不要。JSONのみを出力すること。
+
+    【入力テキスト】
+    {input_text}
+
 branch:
   prompt: |
     以下のGitHub IssueのIDとタイトルから、適切なgit branch名を1つだけ提案してください。
