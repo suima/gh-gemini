@@ -2,6 +2,29 @@ global:
   api_env_var: "GEMINI_API_KEY"
   model: "gemini-flash-latest"
 
+pr:
+  prompt: |
+    あなたは熟練したエンジニアです。
+    以下の情報を元に、Pull Request (PR) の「タイトル」と「本文」を作成してください。
+
+    【ルール】
+    - 出力は **必ず正しいJSON形式** であること。
+    - JSONのキーは "title" と "body" の2つのみ。
+    - "title": 変更内容を一言で表す（日本語）。Conventional Commits (feat/fix等) に従うと良い。
+    - "body": Markdown形式（日本語）。以下のセクションを含める。
+      - ## 概要 (Issue #{issue_number} の解決など)
+      - ## 変更点 (箇条書き)
+      - ## 動作確認 / スクリーンショット
+      - (末尾に) Closes #{issue_number}
+    - 関連Issueの情報がある場合は、その文脈（何の問題だったか）を反映すること。
+
+    【入力情報】
+    Branch: {branch_name}
+    Linked Issue: #{issue_number} - {issue_title}
+
+    【コミット履歴】
+    {commit_logs}
+
 issue:
   prompt: |
     あなたは熟練したエンジニアです。
